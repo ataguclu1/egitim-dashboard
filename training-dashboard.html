@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<title>Assistt Akademi – Executive Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+body{background:#0f172a;color:white;font-family:system-ui;}
+.map-wrap{background:white;border-radius:16px;padding:12px;position:relative;overflow:hidden;}
+.map-wrap svg{width:100%;height:420px;}
+.map-wrap path{fill:#ffffff;stroke:#94a3b8;stroke-width:.6;transition:.2s;}
+.map-wrap path:hover{fill:#c7d2fe;cursor:pointer;}
+.map-wrap path.active{fill:#6366f1;}
+.data-pin{fill:#38bdf8;stroke:#0f172a;stroke-width:1;pointer-events:none;}
+.tooltip{position:absolute;background:#111827;padding:6px 10px;border-radius:6px;font-size:12px;opacity:0;pointer-events:none;z-index:50;white-space:nowrap;}
+.card{background:white;color:#0f172a;padding:16px;border-radius:14px;animation:fade .35s ease;display:flex;flex-direction:column;min-width:240px;word-break:break-word;}
+@keyframes fade{from{opacity:0;transform:translateY(6px)} to{opacity:1}}
+.icon-row{display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;}
+.icon-row span{display:flex;align-items:center;gap:6px;white-space:nowrap;animation:drop 0.5s forwards;}
+.icon-row span:nth-child(1){animation-delay:0.05s}
+.icon-row span:nth-child(2){animation-delay:0.1s}
+.icon-row span:nth-child(3){animation-delay:0.15s}
+@keyframes drop{from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:translateY(0);}}
+.project-btn{padding:10px 20px;border-radius:999px;background:rgba(255,255,255,.1);flex-shrink:0;white-space:nowrap;}
+.project-btn.active{background:#3b82f6;font-weight:700;}
+.icon-label{display:flex;align-items:center;gap:4px;font-size:14px;font-weight:500;}
+.bar{background:#e5e7eb;border-radius:999px;height:8px;overflow:hidden;flex:1;margin-left:6px;}
+.bar span{display:block;height:100%;background:#6366f1;width:0;animation:grow .6s ease forwards;}
+@keyframes grow{to{width:var(--w)}}
+.chart-bar{height:8px;background:#e5e7eb;border-radius:999px;overflow:hidden;flex:1;margin-left:6px;}
+.chart-bar span{display:block;height:100%;background:#6366f1;width:0;animation:chartGrow 0.8s ease forwards;}
+@keyframes chartGrow{from{width:0;} to{width:var(--w);}}
+</style>
+</head>
+<body>
+
+<div class="max-w-7xl mx-auto p-6 space-y-6">
+<div class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6">
+  <h1 class="text-3xl font-black">Assistt Akademi – Executive Eğitim Dashboard</h1>
+  <p class="text-blue-100">Türkiye Genelinde Eğitim Yayılımı</p>
+</div>
+
+<div class="flex gap-3 flex-wrap">
+  <button class="project-btn active" onclick="selectProject('Mobil',this)">Mobil</button>
+  <button class="project-btn" onclick="selectProject('Kamu',this)">Kamu</button>
+  <button class="project-btn" onclick="selectProject('Özel',this)">Özel</button>
+  <button class="project-btn" onclick="selectProject('Havayolları',this)">Havayolları</button>
+  <button class="project-btn" onclick="selectProject('TT Evde İnternet',this)">TT Evde İnternet</button>
+  <button class="project-btn" onclick="selectProject('TT Ev-İş Telefonu',this)">TT Ev-İş Telefonu</button>
+  <button class="project-btn" onclick="selectProject('TR',this)">🌐 Tüm Türkiye</button>
+</div>
+
+<div id="summaryCards" class="grid md:grid-cols-4 gap-4"></div>
+
+<div class="grid lg:grid-cols-3 gap-6">
+<div class="lg:col-span-2 map-wrap shadow">
+  <h3 class="font-black text-slate-800 mb-2">Türkiye Eğitim Haritası</h3>
+  <div id="mapContainer"></div>
+  <div id="tooltip" class="tooltip"></div>
+</div>
+
+<div class="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-5">
+  <h3 class="font-black mb-4">📍 <span id="cityTitle">Şehir Seçin</span></h3>
+  <div id="cityDetails" class="space-y-3"></div>
+</div>
+</div>
+</div>
+
+<script>
+const data={
+Mobil:{summary:{yet:{kisi:604,saat:3052,lok:6},bil:{kisi:126,saat:424,lok:6},e:{atanan:267,oran:80},sin:{gun:86,ay:88}},cities:{İstanbul:{kisi:79,saat:281,sinav:86,e:{atanan:30,oran:80}},Ankara:{kisi:102,saat:460,sinav:87,e:{atanan:40,oran:75}}}},
+Kamu:{summary:{yet:{kisi:420,saat:2100,lok:4},bil:{kisi:90,saat:300,lok:4},e:{atanan:190,oran:65},sin:{gun:80,ay:82}},cities:{İstanbul:{kisi:60,saat:210,sinav:82,e:{atanan:20,oran:60}},Ankara:{kisi:88,saat:390,sinav:84,e:{atanan:25,oran:70}}}},
+Özel:{summary:{yet:{kisi:310,saat:1600,lok:3},bil:{kisi:55,saat:220,lok:3},e:{atanan:120,oran:72},sin:{gun:83,ay:85}},cities:{İstanbul:{kisi:44,saat:180,sinav:85,e:{atanan:15,oran:70}},Ankara:{kisi:51,saat:200,sinav:86,e:{atanan:20,oran:75}}}},
+Havayolları:{summary:{yet:{kisi:200,saat:1000,lok:2},bil:{kisi:40,saat:120,lok:2},e:{atanan:50,oran:60},sin:{gun:30,ay:50}},cities:{İstanbul:{kisi:40,saat:200,sinav:60,e:{atanan:10,oran:60}},Ankara:{kisi:30,saat:150,sinav:55,e:{atanan:15,oran:50}}}},
+"TT Evde İnternet":{summary:{yet:{kisi:150,saat:800,lok:1},bil:{kisi:30,saat:80,lok:1},e:{atanan:25,oran:70},sin:{gun:20,ay:40}},cities:{İstanbul:{kisi:20,saat:100,sinav:70,e:{atanan:5,oran:70}},Ankara:{kisi:10,saat:50,sinav:60,e:{atanan:5,oran:60}}}},
+"TT Ev-İş Telefonu":{summary:{yet:{kisi:180,saat:900,lok:2},bil:{kisi:35,saat:100,lok:2},e:{atanan:40,oran:65},sin:{gun:25,ay:45}},cities:{İstanbul:{kisi:25,saat:130,sinav:65,e:{atanan:10,oran:65}},Ankara:{kisi:15,saat:70,sinav:55,e:{atanan:5,oran:50}}}}
+};
+
+let currentProject="Mobil";
+let selectedCity=null;
+const tooltip=document.getElementById("tooltip");
+
+function selectProject(p,btn){
+  currentProject=p;
+  document.querySelectorAll(".project-btn").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  if(selectedCity && currentProject!=="TR"){ selectedCity=null; document.querySelectorAll("#mapContainer svg path").forEach(x=>x.classList.remove("active")); }
+  renderSummary();
+  document.querySelectorAll(".data-pin").forEach(p=>p.remove());
+  addPins();
+  if(selectedCity) renderCityDetails(selectedCity);
+}
+
+function renderSummary(){
+  let s=currentProject==="TR"?getTRSummary():data[currentProject].summary;
+  summaryCards.innerHTML=`
+<div class="card">
+📚 Yetiştirme
+<div class="icon-row">
+<span class="icon-label">👤 ${s.yet.kisi} Kişi</span>
+<span class="icon-label">⏱ ${s.yet.saat} Saat</span>
+</div>
+</div>
+<div class="card">
+🔄 Bilgi Tazeleme
+<div class="icon-row">
+<span class="icon-label">👤 ${s.bil.kisi} Kişi</span>
+<span class="icon-label">⏱ ${s.bil.saat} Saat</span>
+</div>
+</div>
+<div class="card">
+💻 E-Eğitim
+<div class="icon-row">
+<span class="icon-label">📚 Atanan E-Eğitim: ${s.e.atanan}</span>
+<span class="icon-label">✅ Tamamlama Oranı: ${s.e.oran}%</span>
+<div class="bar"><span style="--w:${s.e.oran}%"></span></div>
+</div>
+</div>
+<div class="card">
+🎓 Sınav
+<div class="icon-row" style="gap:12px;flex-wrap:wrap">
+<div style="display:flex;align-items:center;gap:6px;flex:1"><span class="icon-label">Günlük: ${s.sin.gun}</span><div class="chart-bar"><span style="--w:${Math.min(s.sin.gun*1.2,100)}%"></span></div></div>
+<div style="display:flex;align-items:center;gap:6px;flex:1"><span class="icon-label">Aylık: ${s.sin.ay}</span><div class="chart-bar"><span style="--w:${Math.min(s.sin.ay,100)}%"></span></div></div>
+</div>
+</div>`;
+  if(!selectedCity){cityTitle.innerText="Şehir Seçin"; cityDetails.innerHTML=currentProject==="TR"? "<div>Seçmek için haritadaki bir şehre tıklayın</div>":"";}
+}
+
+function getTRSummary(){
+  const total={yet:{kisi:0,saat:0,lok:0},bil:{kisi:0,saat:0,lok:0},e:{atanan:0,oran:0},sin:{gun:0,ay:0}};
+  let oranCount=0,sinAyCount=0;
+  Object.values(data).forEach(proj=>{
+    total.yet.kisi += proj.summary.yet.kisi;
+    total.yet.saat += proj.summary.yet.saat;
+    total.bil.kisi += proj.summary.bil.kisi;
+    total.bil.saat += proj.summary.bil.saat;
+    total.e.atanan += proj.summary.e.atanan;
+    total.e.oran += proj.summary.e.oran; oranCount++;
+    total.sin.gun += proj.summary.sin.gun;
+    total.sin.ay += proj.summary.sin.ay; sinAyCount++;
+  });
+  total.e.oran=Math.round(total.e.oran/oranCount);
+  total.sin.ay=Math.round(total.sin.ay/sinAyCount);
+  return total;
+}
+
+function renderCityDetails(city){
+  let html="";
+  if(currentProject==="TR"){
+    Object.keys(data).forEach(projName=>{
+      const cityData=data[projName].cities[city];
+      if(cityData){
+        html+=`<div class="card"><b>${projName}</b>
+<div class="icon-row">
+<span class="icon-label">👤 ${cityData.kisi} Kişi</span>
+<span class="icon-label">⏱ ${cityData.saat} Saat</span>
+</div>
+<div class="icon-row">
+<span class="icon-label">💻 Atanan E-Eğitim: ${cityData.e.atanan}</span>
+<span class="icon-label">✅ Tamamlama Oranı: ${cityData.e.oran}%</span>
+<div class="bar"><span style="--w:${cityData.e.oran}%"></span></div>
+</div>
+<div class="icon-row" style="gap:12px;flex-wrap:wrap">
+<div style="display:flex;align-items:center;gap:6px;flex:1"><span class="icon-label">🎓 Günlük: ${cityData.sinav}</span><div class="chart-bar"><span style="--w:${cityData.sinav}%"></span></div></div>
+<div style="display:flex;align-items:center;gap:6px;flex:1"><span class="icon-label">🎓 Aylık: ${Math.round(cityData.sinav*1.05)}</span><div class="chart-bar"><span style="--w:${Math.min(Math.round(cityData.sinav*1.05),100)}%"></span></div></div>
+</div></div>`;
+      }
+    });
+  } else {
+    const cityData=data[currentProject].cities[city];
+    if(cityData){
+      html=`<div class="card"><b>${currentProject}</b>
+<div class="icon-row">
+<span class="icon-label">👤 ${cityData.kisi} Kişi</span>
+<span class="icon-label">⏱ ${cityData.saat} Saat</span>
+</div>
+<div class="icon-row">
+<span class="icon-label">💻 Atanan E-Eğitim: ${cityData.e.atanan}</span>
+<span class="icon-label">✅ Tamamlama Oranı: ${cityData.e.oran}%</span>
+<div class="bar"><span style="--w:${cityData.e.oran}%"></span></div>
+</div>
+<div class="icon-row" style="gap:12px;flex-wrap:wrap">
+<div style="display:flex;align-items:center;gap:6px;flex:1"><span class="icon-label">🎓 Günlük: ${cityData.sinav}</span><div class="chart-bar"><span style="--w:${cityData.sinav}%"></span></div></div>
+<div style="display:flex;align-items:center;gap:6px;flex:1"><span class="icon-label">🎓 Aylık: ${Math.round(cityData.sinav*1.05)}</span><div class="chart-bar"><span style="--w:${Math.min(Math.round(cityData.sinav*1.05),100)}%"></span></div></div>
+</div></div>`;
+    }
+  }
+  cityDetails.innerHTML = html || "<div>Bu şehirde veri yok</div>";
+}
+
+// HARİTA
+fetch("turkey.svg").then(r=>r.text()).then(svg=>{
+  mapContainer.innerHTML=svg;
+  const svgEl=mapContainer.querySelector("svg");
+  svgEl.setAttribute("preserveAspectRatio","xMidYMid meet");
+  svgEl.querySelectorAll("g#features path").forEach(p=>{
+    const city=p.getAttribute("name"); if(!city) return;
+    p.addEventListener("mouseenter",()=>{ tooltip.innerText=city; tooltip.style.opacity=1 });
+    p.addEventListener("mousemove",e=>{ const r=mapContainer.getBoundingClientRect(); tooltip.style.left=e.clientX-r.left+12+"px"; tooltip.style.top=e.clientY-r.top+12+"px"; });
+    p.addEventListener("mouseleave",()=>tooltip.style.opacity=0);
+    p.addEventListener("click",()=>{
+      svgEl.querySelectorAll("path").forEach(x=>x.classList.remove("active"));
+      p.classList.add("active"); selectedCity = city; renderCityDetails(city);
+    });
+  });
+  addPins();
+});
+
+function addPins(){
+  const svg=document.querySelector("#mapContainer svg"); if(!svg) return;
+  let cities=[];
+  if(currentProject==="TR"){
+    Object.values(data).forEach(proj=>{ cities=cities.concat(Object.keys(proj.cities)); });
+    cities=[...new Set(cities)];
+  } else cities=Object.keys(data[currentProject]?.cities || {});
+  cities.forEach(city=>{
+    const p=[...svg.querySelectorAll("path")].find(x=>x.getAttribute("name")===city); if(!p) return;
+    const b=p.getBBox();
+    const c=document.createElementNS("http://www.w3.org/2000/svg","circle");
+    c.setAttribute("cx",b.x+b.width/2); c.setAttribute("cy",b.y+b.height/2);
+    c.setAttribute("r","4"); c.setAttribute("class","data-pin"); svg.appendChild(c);
+  });
+}
+
+renderSummary();
+</script>
+</body>
+</html>
